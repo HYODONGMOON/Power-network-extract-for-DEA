@@ -1,164 +1,161 @@
-# 🔌 대한민국 전력망 추출기 (KR Power Network Extractor)
+# Korea Power Grid Map — DEA Analysis
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+OpenStreetMap(OSM) 기반 한국 전력망 데이터 추출 및 **지도 시각화** 도구  
+DEA(Data Envelopment Analysis) 연구의 기초 인프라 데이터 구축을 목적으로 개발
 
-OpenStreetMap(OSM) 데이터를 기반으로 **대한민국 송전망 네트워크**를 자동으로 추출하고 분석하는 Python 도구입니다.
+---
 
-## ✨ 주요 기능
+## 📌 주요 기능
 
-- 📍 **OSM 기반 송전선 자동 추출**: 전국 송전선(line/cable)과 변전소 데이터 수집
-- 🗺️ **시·도별 통계 집계**: 17개 광역지자체 단위로 송전선 길이 및 용량 통계 산출
-- 🔗 **지역 간 연결 분석**: 시·도 간 송전선 연결 관계 및 전압 등급별 통계
-- ⚡ **회선·킬로미터(c.km) 계산**: 실무에서 사용하는 정확한 회선km 지표 산출
-- 📊 **PyPSA 호환 포맷**: 전력망 시뮬레이션 도구(PyPSA) 입력 데이터 자동 생성
-- 🚀 **대용량 처리 최적화**: 타일 분할 다운로드로 전국 데이터 빠르게 처리
+| 기능 | 파일 |
+|------|------|
+| 전력망 지도 시각화 (현황 + 계획) | `kr_grid_map.py` ⭐ |
+| 원시 데이터 추출 및 지역별 집계 | `power network extract.py` |
 
-## 🎯 사용 사례
+---
 
-- 전력망 연구 및 분석
-- 에너지 시스템 모델링 (PyPSA, GESI 등)
-- 송전 인프라 현황 파악
-- 지역별 전력망 통계 산출
+## 🗺️ 지도 시각화 (`kr_grid_map.py`)
 
-## 📦 설치 방법
+[openinframap.org](https://openinframap.org/#6.7/35.64/127.158) 스타일로 한국 전력망을 시각화합니다.
 
-### 1. 저장소 클론
-```bash
-git clone https://github.com/HYODONGMOON/kr-power-network-extract.git
-cd kr-power-network-extract
+### 표시 레이어
+
+| 레이어 | 색상 | 설명 |
+|--------|------|------|
+| 765 kV | 🔴 빨강 | 초고압 송전선 |
+| 345 kV | 🟠 주황 | 고압 송전선 |
+| 154 kV | 🔵 하늘 | 표준 송전선 |
+| HVDC   | 🟣 보라 (점선) | 직류 송전선 |
+| 변전소 | 전압별 기호 | 154kV 이상 변전소 |
+
+### 출력 파일
+
+```
+output/
+├── kr_grid_map_current.png        ← 정적 지도 (현황)
+├── kr_grid_map_interactive.html   ← 인터랙티브 지도 (레이어 on/off 가능)
+├── kr_grid_data.xlsx              ← 전압별 라인/변전소 데이터
+└── kr_grid_lines.gpkg             ← GIS 파일 (QGIS/ArcGIS용)
 ```
 
-### 2. 필수 패키지 설치
+### 실행 방법
+
+```bash
+# 기본 실행 (전체 한국, 모든 레이어)
+python kr_grid_map.py
+
+# 빠른 테스트 (변전소 생략)
+python kr_grid_map.py --quick
+
+# HTML 지도 생략
+python kr_grid_map.py --no-html
+
+# 특정 지역만 (bbox: minLon,minLat,maxLon,maxLat)
+python kr_grid_map.py --bbox 126.0,34.0,130.0,38.5
+
+# 계획망 오버레이 (2030/2038 계획선로 표시)
+python kr_grid_map.py --overlay planned_grid.xlsx
+```
+
+---
+
+## 📊 계획망 오버레이 기능
+
+현황 지도 위에 정부 계획(제11차 장기 송변전설비계획 등)을 덧씌울 수 있습니다.
+
+### 사용 방법
+
+1. `kr_grid_data.xlsx`의 `planned_lines_template` 시트를 복사
+2. 아래 컬럼에 계획 데이터 입력:
+
+| 컬럼 | 설명 |
+|------|------|
+| `name` | 선로명 |
+| `from_substation` | 시작 변전소 |
+| `to_substation` | 종료 변전소 |
+| `voltage_kV` | 전압 등급 |
+| `from_lon`, `from_lat` | 시작점 좌표 |
+| `to_lon`, `to_lat` | 종료점 좌표 |
+| `year_planned` | 계획 연도 (2030 / 2038) |
+| `status` | `planned` / `under_construction` / `completed` |
+
+3. 파일 저장 후 실행:
+
+```bash
+python kr_grid_map.py --overlay planned_grid.xlsx
+```
+
+→ `kr_grid_map_2030.png`, `kr_grid_map_2038.png` 자동 생성
+
+---
+
+## 🔬 연구 배경
+
+### 2. Existing Transmission Backbone
+- **현황 지도**: 765kV, 345kV, 154kV, HVDC, 주요 변전소 시각화
+- 출처: OpenStreetMap → `kr_grid_map.py`
+
+### 4. Grid Expansion Overview
+- **계획망 지도**: 에너지 하이웨이, 제11차 장기 송변전설비계획, HVDC 사업 등
+- 현황 지도 위에 계획 선로/변전소 오버레이 → `--overlay` 옵션 활용
+
+### 3. Evidence of Bottlenecks (추후 추가)
+- 지역별 재생에너지 설비 집중도
+- 지역 간 송전용량 (c.km)
+- 주요 해상풍력 예정지와 계통 접속점
+
+---
+
+## 🛠️ 설치
+
 ```bash
 pip install -r requirements.txt
+pip install folium          # 인터랙티브 HTML 지도용 (선택)
 ```
 
-**권장 환경**: Anaconda/Miniconda (GeoPandas 의존성 관리가 용이)
-
-```bash
-conda create -n power-network python=3.9
-conda activate power-network
-conda install -c conda-forge geopandas osmnx
-pip install -r requirements.txt
-```
-
-## 🚀 빠른 시작
-
-### 기본 사용법 (대한민국 전체)
-```bash
-python "power network extract.py"
-```
-
-실행 후 `./output` 폴더에 결과 파일이 생성됩니다.
-
-### 주요 옵션
-
-```bash
-# 특정 지역만 추출 (예: 서울)
-python "power network extract.py" --area "Seoul"
-
-# 경계박스로 영역 지정 (WGS84 좌표)
-python "power network extract.py" --bbox "124.5,33.0,132.0,39.5"
-
-# 대용량 처리 최적화 (3x3 타일 분할)
-python "power network extract.py" --tiles 3
-
-# 빠른 모드 (변전소 제외)
-python "power network extract.py" --quick
-
-# Overpass API 타임아웃 조정 (초)
-python "power network extract.py" --timeout 600
-```
-
-## 📊 출력 데이터
-
-실행 후 `./output` 폴더에 다음 파일들이 생성됩니다:
-
-### CSV 파일
-| 파일명 | 설명 |
-|--------|------|
-| `kr_power_lines_summary.csv` | 전체 송전선 요약 (전압, 회선수, 길이 등) |
-| `kr_length_by_province.csv` | 시·도별 송전선 총 길이 및 통계 |
-| `kr_province_connections.csv` | 시·도 간 연결 수 |
-| `kr_province_connections_by_voltage.csv` | 시·도 간 전압별 상세 통계 (**c.km 포함**) |
-| `kr_province_connections_simple.csv` | 시·도 간 요약 통계 (**회선km 포함**) |
-| `kr_province_intra_by_voltage.csv` | 시·도 내부 전압별 통계 |
-| `pypsa_lines.csv` / `.xlsx` | PyPSA 호환 포맷 (**circuit_km 포함**) |
-
-### GIS 파일 (QGIS/ArcGIS 확인용)
-- `kr_power_lines.gpkg`: 송전선 레이어
-- `kr_power_substations.gpkg`: 변전소 레이어
-- `kr_admin_lv4.gpkg`: 시·도 경계 레이어
-
-## 📖 상세 문서
-
-- [**설치 가이드**](docs/installation.md) - 상세 설치 방법 및 문제 해결
-- [**사용 가이드**](docs/usage.md) - 다양한 사용 예제
-- [**데이터 구조**](docs/data_structure.md) - 출력 데이터 상세 설명
-- [**알고리즘 설명**](docs/algorithm.md) - 처리 과정 및 계산 방법
-- [**FAQ**](docs/faq.md) - 자주 묻는 질문
-
-## 🔍 주요 개념
-
-### 회선·킬로미터 (circuit-km, c.km)
-
-송전선의 실제 용량을 나타내는 지표로, 다음과 같이 계산됩니다:
+### 주요 의존성
 
 ```
-c.km = Σ (각 송전선의 길이 × 회선수)
+geopandas>=0.12
+osmnx>=1.3
+matplotlib>=3.5
+shapely>=2.0
+folium>=0.14       # HTML 지도 (선택)
+openpyxl>=3.0
 ```
 
-**예시**: 강원특별자치도 ↔ 경기도 간 154kV 송전선
-- 총 길이: 69.23 km
-- 라인 수: 12개
-- 회선 합: 22
-- **회선km**: 126.9 c.km (정확한 값은 라인별 계산 후 합산)
+---
 
-### 용량 지표 (capacity_proxy)
-
-OSM 데이터에는 실제 송전용량(MW)이 없어, 다음 근사식을 사용합니다:
+## 📁 프로젝트 구조
 
 ```
-capacity_proxy = 전압(kV) × 회선수
+Power-network-extract-for-DEA/
+├── kr_grid_map.py              # 메인: 전력망 지도 시각화
+├── power network extract.py    # 원본: 지역별 집계/분석
+├── README.md
+├── requirements.txt
+├── output/                     # 결과 파일 (자동 생성)
+│   ├── kr_grid_map_current.png
+│   ├── kr_grid_map_interactive.html
+│   ├── kr_grid_data.xlsx
+│   └── kr_grid_lines.gpkg
+└── docs/
+    ├── algorithm.md
+    ├── data_structure.md
+    └── ...
 ```
 
-⚠️ **주의**: 이는 상대 비교용 지표이며, 실제 전송용량(MW/MVA)과는 다릅니다.
-
-## 🛠️ 기술 스택
-
-- **Python 3.9+**
-- **GeoPandas**: 공간 데이터 처리
-- **OSMnx**: OpenStreetMap 데이터 추출
-- **Shapely**: 기하학 연산
-- **Pandas**: 데이터 집계 및 분석
-
-## ⚠️ 제한사항
-
-- **OSM 데이터 한계**: 커버리지와 정확성이 100%가 아닐 수 있습니다
-- **용량 근사치**: 실제 송전용량이 아닌 proxy 지표만 제공됩니다
-- **처리 시간**: 전국 데이터 처리 시 10~30분 소요 (네트워크 속도에 따라 변동)
-
-## 🤝 기여하기
-
-버그 리포트, 기능 제안, Pull Request를 환영합니다!
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+---
 
 ## 📄 라이선스
 
-MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+MIT License — 연구/교육 목적 자유 사용  
+OSM 데이터: [ODbL License](https://www.openstreetmap.org/copyright)
 
-## 📧 문의
+---
 
-프로젝트 관련 문의사항은 [Issues](https://github.com/HYODONGMOON/kr-power-network-extract/issues)에 등록해 주세요.
+## 🔗 관련 링크
 
-## 🙏 감사의 말
-
-- [OpenStreetMap](https://www.openstreetmap.org/) 커뮤니티
-- [OSMnx](https://github.com/gboeing/osmnx) 프로젝트
-- [PyPSA](https://pypsa.org/) 프로젝트 
+- [OpenInfraMap](https://openinframap.org/#6.7/35.64/127.158) — 데이터 소스 시각화 참조
+- [PyPSA_GESI_Test](https://github.com/HYODONGMOON/PyPSA_GESI_Test) — 전력 시스템 최적화 모델
+- [Power-network-extract](https://github.com/HYODONGMOON/Power-network-extract) — 원본 추출 코드
