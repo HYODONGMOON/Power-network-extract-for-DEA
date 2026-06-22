@@ -1,0 +1,9 @@
+geopandas>=0.14
+shapely>=2.0
+pyproj>=3.6
+fiona>=1.9
+osmnx>=1.9
+tqdm>=4.66
+pandas>=2.0
+numpy>=1.25
+openpyxl>=3.1 

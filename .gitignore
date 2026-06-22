@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual env
+.env
+.venv
+venv/
+
+# Build/output/cache
+/output/
+/osm_cache/
+*.gpkg
+*.gpkg-shm
+*.gpkg-wal
+*.sqlite
+*.parquet
+*.feather
+*.csv
+*.xlsx
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/ 
