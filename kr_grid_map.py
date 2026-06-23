@@ -456,6 +456,8 @@ def _plot_layers(ax, l765, l345, l154, hvdc, subs, show_154kv_sub=True,
         hvdc.plot(ax=ax, color=s["color"], linewidth=s["linewidth"],
                   linestyle=s.get("linestyle", "-"), zorder=s["zorder"])
     # 변전소
+    # geopandas.plot()은 내부적으로 scatter()를 사용하므로
+    # markeredgecolor 대신 edgecolors, markeredgewidth 대신 linewidths 사용
     if not subs.empty:
         layers = ["765kV", "345kV"] + (["154kV"] if show_154kv_sub else [])
         for vclass in layers:
@@ -466,8 +468,8 @@ def _plot_layers(ax, l765, l345, l154, hvdc, subs, show_154kv_sub=True,
                            color=style["color"],
                            marker=style["marker"],
                            markersize=style["markersize"],
-                           markeredgecolor=style.get("markeredgecolor", style["color"]),
-                           markeredgewidth=style.get("markeredgewidth", 0.5),
+                           edgecolors=style.get("markeredgecolor", style["color"]),
+                           linewidths=style.get("markeredgewidth", 0.5),
                            zorder=style["zorder"], alpha=0.95)
     # 계획망 오버레이
     if overlay_lines is not None and not overlay_lines.empty:
