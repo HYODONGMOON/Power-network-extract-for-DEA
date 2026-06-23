@@ -78,30 +78,43 @@ WGS84   = "EPSG:4326"
 LEN_CRS = "EPSG:5179"   # 한국 투영 좌표계 (미터)
 
 # ─────────────────────────────────────────────
-# 시각화 스타일 (openinframap 참조)
+# 지도 색상 설정 (Netreference 스타일: 흰 육지 + 하늘색 바다)
 # ─────────────────────────────────────────────
+MAP_BG_SEA      = "#C5DCE8"   # 바다 (하늘색)
+MAP_BG_LAND     = "#F8F8F5"   # 육지 (거의 흰색)
+MAP_BORDER      = "#AAAAAA"   # 시·도 경계선 (연한 회색)
+MAP_BORDER_W    = 0.5
+
+# 송전선 스타일 (밝은 배경에 맞게 조정)
 LAYER_STYLE = {
-    "765kV":  {"color": "#E63946", "linewidth": 2.5, "zorder": 5, "label": "765 kV"},
-    "345kV":  {"color": "#F4A261", "linewidth": 1.5, "zorder": 4, "label": "345 kV"},
-    "154kV":  {"color": "#A8DADC", "linewidth": 0.8, "zorder": 3, "label": "154 kV"},
-    "HVDC":   {"color": "#9B5DE5", "linewidth": 2.0, "zorder": 6, "label": "HVDC",
+    "765kV":  {"color": "#CC0000", "linewidth": 2.8, "zorder": 5, "label": "765 kV"},
+    "345kV":  {"color": "#E05000", "linewidth": 1.6, "zorder": 4, "label": "345 kV"},
+    "154kV":  {"color": "#444499", "linewidth": 0.7, "zorder": 3, "label": "154 kV"},
+    "HVDC":   {"color": "#009999", "linewidth": 2.2, "zorder": 6, "label": "HVDC",
                "linestyle": "--"},
 }
 
+# 변전소 스타일
 SUB_STYLE = {
-    "765kV": {"color": "#E63946", "marker": "s", "markersize": 7,  "zorder": 7},
-    "345kV": {"color": "#F4A261", "marker": "^", "markersize": 5,  "zorder": 6},
-    "154kV": {"color": "#A8DADC", "marker": "o", "markersize": 3,  "zorder": 5},
+    "765kV": {"color": "#CC0000", "marker": "s", "markersize": 9,  "zorder": 7,
+              "markeredgecolor": "#880000", "markeredgewidth": 0.8},
+    "345kV": {"color": "#CC0000", "marker": "o", "markersize": 6,  "zorder": 6,
+              "markeredgecolor": "#880000", "markeredgewidth": 0.6},
+    "154kV": {"color": "#333333", "marker": "o", "markersize": 3,  "zorder": 5,
+              "markeredgecolor": "#333333", "markeredgewidth": 0.4},
 }
 
 # 계획망 오버레이 스타일 (향후 사용)
 PLANNED_STYLE = {
-    "new":      {"color": "#2DC653", "linewidth": 2.0, "zorder": 8, "linestyle": "-",
+    "new":      {"color": "#007700", "linewidth": 2.0, "zorder": 8, "linestyle": "-",
                  "label": "신규 송전선"},
-    "upgraded": {"color": "#FFD166", "linewidth": 2.0, "zorder": 8, "linestyle": "-.",
+    "upgraded": {"color": "#BB7700", "linewidth": 2.0, "zorder": 8, "linestyle": "-.",
                  "label": "증설/업그레이드"},
-    "new_sub":  {"color": "#2DC653", "marker": "*", "markersize": 10, "zorder": 9},
+    "new_sub":  {"color": "#007700", "marker": "*", "markersize": 10, "zorder": 9},
 }
+
+# 수도권 클로즈업 범위 (WGS84)
+CAPITAL_BBOX_WGS = (126.35, 36.95, 127.85, 37.85)  # minLon, minLat, maxLon, maxLat
 
 # ─────────────────────────────────────────────
 # 인자 파서
@@ -408,59 +421,55 @@ except Exception as e:
 # ─────────────────────────────────────────────
 print("[7] 정적 지도 생성 중...")
 
-def draw_grid_map(
-    admin_gdf,
-    l765, l345, l154, hvdc, subs,
-    title="대한민국 전력망 현황",
-    output_path=None,
-    overlay_lines=None,   # GeoDataFrame: 계획 신규 라인
-    overlay_subs=None,    # GeoDataFrame: 계획 신규 변전소
-    overlay_label="계획망",
-    figsize=(14, 16)
-):
-    """
-    전력망 지도를 그리고 PNG로 저장.
-    overlay_lines / overlay_subs 가 있으면 계획망을 위에 덧그림.
-    """
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
-    fig.patch.set_facecolor("#1A1A2E")   # 어두운 배경
-    ax.set_facecolor("#1A1A2E")
+# 한국 육지 외곽선 (시·도 합집합) — 바다와 구분용
+korea_land = admin_5179.dissolve().geometry.iloc[0]
+korea_land_gdf = gpd.GeoDataFrame(geometry=[korea_land], crs=LEN_CRS)
 
-    # 시·도 경계
-    admin_gdf.boundary.plot(ax=ax, color="#4A4A6A", linewidth=0.5, zorder=1)
-    admin_gdf.plot(ax=ax, color="#2A2A4A", alpha=0.6, zorder=0)
+# 수도권 bbox (LEN_CRS 변환)
+from pyproj import Transformer
+_tr = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
+_x0, _y0 = _tr.transform(CAPITAL_BBOX_WGS[0], CAPITAL_BBOX_WGS[1])
+_x1, _y1 = _tr.transform(CAPITAL_BBOX_WGS[2], CAPITAL_BBOX_WGS[3])
+CAPITAL_BBOX_5179 = (_x0, _y0, _x1, _y1)
 
-    # ── 154kV
+
+def _plot_layers(ax, l765, l345, l154, hvdc, subs, show_154kv_sub=True,
+                 overlay_lines=None, overlay_subs=None):
+    """공통 레이어 그리기 (ax에 직접 그림)"""
+    # 154kV
     if not l154.empty:
         s = LAYER_STYLE["154kV"]
-        l154.plot(ax=ax, color=s["color"], linewidth=s["linewidth"], zorder=s["zorder"], alpha=0.7)
-
-    # ── 345kV
+        l154.plot(ax=ax, color=s["color"], linewidth=s["linewidth"],
+                  zorder=s["zorder"], alpha=0.75)
+    # 345kV
     if not l345.empty:
         s = LAYER_STYLE["345kV"]
-        l345.plot(ax=ax, color=s["color"], linewidth=s["linewidth"], zorder=s["zorder"], alpha=0.9)
-
-    # ── 765kV
+        l345.plot(ax=ax, color=s["color"], linewidth=s["linewidth"],
+                  zorder=s["zorder"], alpha=0.95)
+    # 765kV
     if not l765.empty:
         s = LAYER_STYLE["765kV"]
         l765.plot(ax=ax, color=s["color"], linewidth=s["linewidth"], zorder=s["zorder"])
-
-    # ── HVDC
+    # HVDC
     if not hvdc.empty:
         s = LAYER_STYLE["HVDC"]
         hvdc.plot(ax=ax, color=s["color"], linewidth=s["linewidth"],
                   linestyle=s.get("linestyle", "-"), zorder=s["zorder"])
-
-    # ── 변전소
+    # 변전소
     if not subs.empty:
-        for vclass, style in SUB_STYLE.items():
+        layers = ["765kV", "345kV"] + (["154kV"] if show_154kv_sub else [])
+        for vclass in layers:
+            style = SUB_STYLE[vclass]
             sub_v = subs[subs["vclass"] == vclass]
             if not sub_v.empty:
-                sub_v.plot(ax=ax, color=style["color"],
-                           marker=style["marker"], markersize=style["markersize"],
-                           zorder=style["zorder"], alpha=0.9)
-
-    # ── 계획망 오버레이 (선택)
+                sub_v.plot(ax=ax,
+                           color=style["color"],
+                           marker=style["marker"],
+                           markersize=style["markersize"],
+                           markeredgecolor=style.get("markeredgecolor", style["color"]),
+                           markeredgewidth=style.get("markeredgewidth", 0.5),
+                           zorder=style["zorder"], alpha=0.95)
+    # 계획망 오버레이
     if overlay_lines is not None and not overlay_lines.empty:
         ps = PLANNED_STYLE["new"]
         overlay_lines.plot(ax=ax, color=ps["color"], linewidth=ps["linewidth"],
@@ -470,62 +479,189 @@ def draw_grid_map(
         overlay_subs.plot(ax=ax, color=ps["color"], marker=ps["marker"],
                           markersize=ps["markersize"], zorder=ps["zorder"])
 
-    # ── 범례
-    legend_elements = [
-        Line2D([0], [0], color="#E63946", linewidth=2.5, label="765 kV"),
-        Line2D([0], [0], color="#F4A261", linewidth=1.5, label="345 kV"),
-        Line2D([0], [0], color="#A8DADC", linewidth=0.8, label="154 kV"),
-        Line2D([0], [0], color="#9B5DE5", linewidth=2.0, linestyle="--", label="HVDC"),
-        Line2D([0], [0], marker="s", color="w", markerfacecolor="#E63946",
-               markersize=7,  linestyle="None", label="변전소 765kV"),
-        Line2D([0], [0], marker="^", color="w", markerfacecolor="#F4A261",
-               markersize=5,  linestyle="None", label="변전소 345kV"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="#A8DADC",
-               markersize=3,  linestyle="None", label="변전소 154kV"),
-    ]
-    if overlay_lines is not None and not overlay_lines.empty:
-        legend_elements.append(
-            Line2D([0], [0], color="#2DC653", linewidth=2.0, label=f"{overlay_label} (신규선)")
-        )
-    if overlay_subs is not None and not overlay_subs.empty:
-        legend_elements.append(
-            Line2D([0], [0], marker="*", color="w", markerfacecolor="#2DC653",
-                   markersize=10, linestyle="None", label=f"{overlay_label} (신규변전소)")
-        )
 
-    legend = ax.legend(
-        handles=legend_elements,
-        loc="lower left",
-        fontsize=8,
-        framealpha=0.85,
-        facecolor="#1A1A2E",
-        edgecolor="#6A6A8A",
-        labelcolor="white",
-        title="전압 등급",
-        title_fontsize=9,
-    )
-
-    # ── 제목
-    ax.set_title(title, fontsize=14, color="white", fontweight="bold", pad=12)
-    ax.set_xlabel("경도 (°E)", color="#AAAACC", fontsize=8)
-    ax.set_ylabel("위도 (°N)", color="#AAAACC", fontsize=8)
-    ax.tick_params(colors="#AAAACC", labelsize=7)
+def _style_ax(ax, xlim=None, ylim=None):
+    """축 공통 스타일 (밝은 배경)"""
+    ax.set_facecolor(MAP_BG_SEA)
+    # 육지 폴리곤 (흰색)
+    korea_land_gdf.plot(ax=ax, color=MAP_BG_LAND, zorder=0)
+    # 시·도 경계
+    admin_5179.boundary.plot(ax=ax, color=MAP_BORDER, linewidth=MAP_BORDER_W, zorder=1)
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
+    ax.set_aspect("equal")
+    ax.tick_params(labelsize=7, color="#666666", labelcolor="#444444")
     for spine in ax.spines.values():
-        spine.set_edgecolor("#4A4A6A")
+        spine.set_edgecolor("#AAAAAA")
+        spine.set_linewidth(0.6)
 
-    plt.tight_layout()
-    if output_path:
-        plt.savefig(output_path, dpi=180, bbox_inches="tight",
-                    facecolor=fig.get_facecolor())
-        print(f"  [OK] {output_path}")
+
+def _make_legend(ax, show_154kv_sub=True, overlay_label=None):
+    """범례 생성"""
+    els = [
+        Line2D([0], [0], color=LAYER_STYLE["765kV"]["color"],
+               linewidth=2.5, label="765 kV 송전선"),
+        Line2D([0], [0], color=LAYER_STYLE["345kV"]["color"],
+               linewidth=1.6, label="345 kV 송전선"),
+        Line2D([0], [0], color=LAYER_STYLE["154kV"]["color"],
+               linewidth=0.8, label="154 kV 송전선"),
+        Line2D([0], [0], color=LAYER_STYLE["HVDC"]["color"],
+               linewidth=2.0, linestyle="--", label="HVDC"),
+        Line2D([0], [0], marker="s", color="none",
+               markerfacecolor=SUB_STYLE["765kV"]["color"],
+               markeredgecolor=SUB_STYLE["765kV"].get("markeredgecolor","#880000"),
+               markersize=8, linestyle="None", label="변전소 765kV"),
+        Line2D([0], [0], marker="o", color="none",
+               markerfacecolor=SUB_STYLE["345kV"]["color"],
+               markeredgecolor=SUB_STYLE["345kV"].get("markeredgecolor","#880000"),
+               markersize=6, linestyle="None", label="변전소 345kV"),
+    ]
+    if show_154kv_sub:
+        els.append(
+            Line2D([0], [0], marker="o", color="none",
+                   markerfacecolor=SUB_STYLE["154kV"]["color"],
+                   markeredgecolor="#333333",
+                   markersize=4, linestyle="None", label="변전소 154kV")
+        )
+    if overlay_label:
+        els.append(Line2D([0], [0], color=PLANNED_STYLE["new"]["color"],
+                          linewidth=2.0, label=f"{overlay_label} 신규선"))
+    ax.legend(handles=els, loc="lower left", fontsize=7.5,
+              framealpha=0.92, facecolor="white", edgecolor="#AAAAAA",
+              title="범 례", title_fontsize=8)
+
+
+def draw_grid_map(
+    admin_gdf_proj, l765, l345, l154, hvdc, subs,
+    title="대한민국 전력망 현황",
+    output_path=None,
+    show_154kv_sub=True,          # False → 154kV 변전소 숨김
+    show_capital_inset=True,      # 수도권 클로즈업 인셋
+    overlay_lines=None,
+    overlay_subs=None,
+    overlay_label=None,
+    figsize=(13, 16),
+):
+    """
+    전력망 지도를 그리고 PNG 저장.
+    - 흰 육지 / 하늘색 바다 (Netreference 스타일)
+    - show_154kv_sub=False 이면 154kV 변전소 숨김
+    - show_capital_inset=True 이면 우하단에 수도권 클로즈업 추가
+    """
+    fig = plt.figure(figsize=figsize, facecolor=MAP_BG_SEA)
+
+    # ── 메인 지도 축
+    if show_capital_inset:
+        # 수도권 인셋을 위해 GridSpec 사용
+        from matplotlib.gridspec import GridSpec
+        gs = GridSpec(1, 1, figure=fig, left=0.04, right=0.96,
+                      top=0.93, bottom=0.04)
+        ax_main = fig.add_subplot(gs[0, 0])
+    else:
+        ax_main = fig.add_axes([0.04, 0.04, 0.92, 0.89])
+
+    _style_ax(ax_main)
+    _plot_layers(ax_main, l765, l345, l154, hvdc, subs,
+                 show_154kv_sub=show_154kv_sub,
+                 overlay_lines=overlay_lines, overlay_subs=overlay_subs)
+    _make_legend(ax_main, show_154kv_sub=show_154kv_sub, overlay_label=overlay_label)
+
+    ax_main.set_title(title, fontsize=13, fontweight="bold",
+                      color="#222222", pad=10)
+    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
+    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+
+    # ── 수도권 클로즈업 인셋
+    if show_capital_inset:
+        # 인셋 axes: 우하단 (전체 figure 기준 비율)
+        ax_inset = fig.add_axes([0.63, 0.05, 0.33, 0.30])
+        _style_ax(ax_inset,
+                  xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
+                  ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
+        _plot_layers(ax_inset, l765, l345, l154, hvdc, subs,
+                     show_154kv_sub=show_154kv_sub)
+
+        ax_inset.set_title("수도권 (확대)", fontsize=8, fontweight="bold",
+                            color="#222222", pad=4)
+        ax_inset.set_xlabel("")
+        ax_inset.set_ylabel("")
+        ax_inset.tick_params(labelsize=6)
+
+        # 메인 지도에 수도권 범위 사각형 표시
+        from matplotlib.patches import Rectangle
+        x0, y0, x1, y1 = CAPITAL_BBOX_5179
+        rect = Rectangle((x0, y0), x1-x0, y1-y0,
+                          linewidth=1.2, edgecolor="#CC0000",
+                          facecolor="none", linestyle="-", zorder=10)
+        ax_main.add_patch(rect)
+        # "수도권" 라벨
+        ax_main.text(x1 + 5000, y0, "수도권\n(확대)", fontsize=7,
+                     color="#CC0000", va="bottom")
+
+        # 인셋 테두리 강조
+        for spine in ax_inset.spines.values():
+            spine.set_edgecolor("#CC0000")
+            spine.set_linewidth(1.5)
+
+    plt.savefig(output_path, dpi=180, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    print(f"  [OK] {output_path}")
     plt.close(fig)
-    return fig
 
-# 현황 지도
+
+# ── 버전 1: 모든 변전소 포함
 draw_grid_map(
     admin_5179, l765, l345, l154, hvdc, subs,
-    title="대한민국 전력망 현황 (OSM 기반)",
-    output_path=os.path.join(OUT_DIR, "kr_grid_map_current.png"),
+    title="대한민국 전력망 현황 — 전체 변전소 (154kV 이상)",
+    output_path=os.path.join(OUT_DIR, "kr_grid_map_all_substations.png"),
+    show_154kv_sub=True,
+    show_capital_inset=True,
+)
+
+# ── 버전 2: 주요 변전소만 (345kV 이상)
+draw_grid_map(
+    admin_5179, l765, l345, l154, hvdc, subs,
+    title="대한민국 전력망 현황 — 주요 변전소 (345kV 이상)",
+    output_path=os.path.join(OUT_DIR, "kr_grid_map_major_substations.png"),
+    show_154kv_sub=False,
+    show_capital_inset=True,
+)
+
+# ── 수도권 단독 클로즈업 (별도 파일)
+def draw_capital_map(
+    admin_gdf_proj, l765, l345, l154, hvdc, subs,
+    output_path=None,
+    show_154kv_sub=True,
+    figsize=(10, 9),
+):
+    fig, ax = plt.subplots(figsize=figsize, facecolor=MAP_BG_SEA)
+    _style_ax(ax,
+              xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
+              ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
+    _plot_layers(ax, l765, l345, l154, hvdc, subs, show_154kv_sub=show_154kv_sub)
+    _make_legend(ax, show_154kv_sub=show_154kv_sub)
+    title_suf = "전체 변전소" if show_154kv_sub else "주요 변전소 (345kV+)"
+    ax.set_title(f"수도권 전력망 현황 ({title_suf})", fontsize=12,
+                 fontweight="bold", color="#222222", pad=8)
+    ax.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
+    ax.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=200, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    print(f"  [OK] {output_path}")
+    plt.close(fig)
+
+draw_capital_map(
+    admin_5179, l765, l345, l154, hvdc, subs,
+    output_path=os.path.join(OUT_DIR, "kr_grid_map_capital_all.png"),
+    show_154kv_sub=True,
+)
+draw_capital_map(
+    admin_5179, l765, l345, l154, hvdc, subs,
+    output_path=os.path.join(OUT_DIR, "kr_grid_map_capital_major.png"),
+    show_154kv_sub=False,
 )
 
 # ─────────────────────────────────────────────
@@ -588,7 +724,7 @@ if not args.no_html:
         m = folium.Map(
             location=[36.5, 127.8],
             zoom_start=7,
-            tiles="CartoDB dark_matter",
+            tiles="CartoDB positron",   # 밝은 배경 (육지 흰색, 바다 하늘색)
         )
 
         # 레이어 그룹
@@ -622,16 +758,18 @@ if not args.no_html:
                             kw["dash_array"] = dash
                         folium.PolyLine(coords, **kw).add_to(fg)
 
-        add_lines_to_fg(l154,  fg_154,  "#A8DADC", 1.5)
-        add_lines_to_fg(l345,  fg_345,  "#F4A261", 2.5)
-        add_lines_to_fg(l765,  fg_765,  "#E63946", 3.5)
-        add_lines_to_fg(hvdc,  fg_hvdc, "#9B5DE5", 3.0, dash="8 4")
+        add_lines_to_fg(l154,  fg_154,  LAYER_STYLE["154kV"]["color"], 1.5)
+        add_lines_to_fg(l345,  fg_345,  LAYER_STYLE["345kV"]["color"], 2.5)
+        add_lines_to_fg(l765,  fg_765,  LAYER_STYLE["765kV"]["color"], 3.5)
+        add_lines_to_fg(hvdc,  fg_hvdc, LAYER_STYLE["HVDC"]["color"],  3.0, dash="8 4")
 
         # 변전소
         if not subs.empty:
             subs_wgs = subs.to_crs(WGS84)
-            color_map = {"765kV": "#E63946", "345kV": "#F4A261", "154kV": "#A8DADC"}
-            radius_map = {"765kV": 8, "345kV": 6, "154kV": 4}
+            color_map = {"765kV": SUB_STYLE["765kV"]["color"],
+                         "345kV": SUB_STYLE["345kV"]["color"],
+                         "154kV": SUB_STYLE["154kV"]["color"]}
+            radius_map = {"765kV": 9, "345kV": 6, "154kV": 4}
             for _, row in subs_wgs.iterrows():
                 vc = row.get("vclass", "154kV")
                 pt = row.geometry
@@ -664,18 +802,26 @@ if not args.no_html:
 print("\n" + "=" * 60)
 print("[완료] 생성된 파일 목록:")
 print("=" * 60)
-print(f"  output/kr_grid_map_current.png  ← 정적 지도 (현황)")
-print(f"  output/kr_grid_data.xlsx        ← 전압별 라인/변전소 데이터")
-print(f"  output/kr_grid_lines.gpkg       ← GIS 파일 (QGIS용)")
-print(f"  output/kr_grid_map_interactive.html  ← 인터랙티브 지도")
+print("  [정적 지도 (PNG)]")
+print("  output/kr_grid_map_all_substations.png   ← 전체 변전소 포함 (전국)")
+print("  output/kr_grid_map_major_substations.png ← 주요 변전소만 (345kV+, 전국)")
+print("  output/kr_grid_map_capital_all.png       ← 수도권 클로즈업 (전체 변전소)")
+print("  output/kr_grid_map_capital_major.png     ← 수도권 클로즈업 (주요 변전소)")
 print()
-print("[계획망 지도 그리는 방법]")
-print("  1. kr_grid_data.xlsx 의 'planned_lines_template' 시트를 복사")
-print("  2. 신규/계획 선로 데이터 입력 (from_lon, from_lat, to_lon, to_lat)")
-print("  3. 파일 이름을 planned_grid.xlsx 로 저장")
-print("  4. python kr_grid_map.py --overlay planned_grid.xlsx")
+print("  [데이터]")
+print("  output/kr_grid_data.xlsx         ← 전압별 라인/변전소 + 계획망 템플릿")
+print("  output/kr_grid_lines.gpkg        ← GIS 파일 (QGIS용)")
+print("  output/kr_grid_map_interactive.html ← 인터랙티브 지도 (레이어 on/off)")
+print()
+print("[계획망 오버레이 방법 (2030/2038)]")
+print("  1. kr_grid_data.xlsx 의 'planned_lines_template' 시트 복사 → 데이터 입력")
+print("  2. python kr_grid_map.py --overlay planned_grid.xlsx")
+print("  → kr_grid_map_2030.png, kr_grid_map_2038.png 자동 생성")
 print()
 print("[통계 요약]")
-print(f"  765kV 라인: {len(l765)}개  |  345kV: {len(l345)}개  |  154kV: {len(l154)}개  |  HVDC: {len(hvdc)}개")
+print(f"  765kV: {len(l765)}개  |  345kV: {len(l345)}개  |  154kV: {len(l154)}개  |  HVDC: {len(hvdc)}개")
 if not subs.empty:
-    print(f"  변전소: {len(subs)}개 (154kV 이상)")
+    n765 = len(subs[subs["vclass"]=="765kV"])
+    n345 = len(subs[subs["vclass"]=="345kV"])
+    n154 = len(subs[subs["vclass"]=="154kV"])
+    print(f"  변전소: 765kV {n765}개 | 345kV {n345}개 | 154kV {n154}개 (합계 {len(subs)}개)")
