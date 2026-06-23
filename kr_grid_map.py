@@ -721,7 +721,6 @@ if not args.no_html:
     print("[9] 인터랙티브 HTML 지도 생성 중...")
     try:
         import folium
-        from folium.plugins import FeatureGroupSubGroup
 
         m = folium.Map(
             location=[36.5, 127.8],
@@ -729,12 +728,23 @@ if not args.no_html:
             tiles="CartoDB positron",   # 밝은 배경 (육지 흰색, 바다 하늘색)
         )
 
-        # 레이어 그룹
-        fg_154  = folium.FeatureGroup(name="154 kV",  show=True)
-        fg_345  = folium.FeatureGroup(name="345 kV",  show=True)
-        fg_765  = folium.FeatureGroup(name="765 kV",  show=True)
-        fg_hvdc = folium.FeatureGroup(name="HVDC",    show=True)
-        fg_sub  = folium.FeatureGroup(name="변전소",  show=True)
+        # ── 송전선 레이어 그룹 (색상 사각형 아이콘 포함)
+        fg_154  = folium.FeatureGroup(
+            name="<span style='color:#444499;font-weight:bold'>■</span> 154 kV", show=True)
+        fg_345  = folium.FeatureGroup(
+            name="<span style='color:#E05000;font-weight:bold'>■</span> 345 kV", show=True)
+        fg_765  = folium.FeatureGroup(
+            name="<span style='color:#CC0000;font-weight:bold'>■</span> 765 kV", show=True)
+        fg_hvdc = folium.FeatureGroup(
+            name="<span style='color:#009999;font-weight:bold'>■</span> HVDC (직류)", show=True)
+
+        # ── 변전소 레이어 그룹 — 345kV 이상 / 154kV 분리
+        fg_sub_major = folium.FeatureGroup(
+            name="<span style='color:#CC0000;font-weight:bold'>●</span> 변전소 (345kV 이상)",
+            show=True)
+        fg_sub_154   = folium.FeatureGroup(
+            name="<span style='color:#333333;font-weight:bold'>●</span> 변전소 (154kV)",
+            show=True)
 
         def add_lines_to_fg(gdf, fg, color, weight, dash=""):
             if gdf.empty:
@@ -744,50 +754,60 @@ if not args.no_html:
                 geom = row.geometry
                 if geom is None:
                     continue
-                if geom.geom_type == "LineString":
-                    coords = [(y, x) for x, y in geom.coords]
-                    kw = dict(color=color, weight=weight, opacity=0.8)
+                parts = [geom] if geom.geom_type == "LineString" else list(geom.geoms)
+                for part in parts:
+                    coords = [(y, x) for x, y in part.coords]
+                    if not coords:
+                        continue
+                    kw = dict(color=color, weight=weight, opacity=0.85)
                     if dash:
                         kw["dash_array"] = dash
-                    folium.PolyLine(coords, **kw,
-                                   tooltip=f"{row.get('name','') or ''} / {row.get('voltage','') or ''}"
-                                   ).add_to(fg)
-                elif geom.geom_type == "MultiLineString":
-                    for part in geom.geoms:
-                        coords = [(y, x) for x, y in part.coords]
-                        kw = dict(color=color, weight=weight, opacity=0.8)
-                        if dash:
-                            kw["dash_array"] = dash
-                        folium.PolyLine(coords, **kw).add_to(fg)
+                    name_str = str(row.get("name") or "")
+                    volt_str = str(row.get("voltage") or "")
+                    tooltip  = f"{name_str} / {volt_str}".strip(" /")
+                    folium.PolyLine(coords, tooltip=tooltip or None, **kw).add_to(fg)
 
-        add_lines_to_fg(l154,  fg_154,  LAYER_STYLE["154kV"]["color"], 1.5)
-        add_lines_to_fg(l345,  fg_345,  LAYER_STYLE["345kV"]["color"], 2.5)
-        add_lines_to_fg(l765,  fg_765,  LAYER_STYLE["765kV"]["color"], 3.5)
-        add_lines_to_fg(hvdc,  fg_hvdc, LAYER_STYLE["HVDC"]["color"],  3.0, dash="8 4")
+        add_lines_to_fg(l154,  fg_154,  LAYER_STYLE["154kV"]["color"], 1.2)
+        add_lines_to_fg(l345,  fg_345,  LAYER_STYLE["345kV"]["color"], 2.2)
+        add_lines_to_fg(l765,  fg_765,  LAYER_STYLE["765kV"]["color"], 3.2)
+        add_lines_to_fg(hvdc,  fg_hvdc, LAYER_STYLE["HVDC"]["color"],  2.8, dash="8 4")
 
-        # 변전소
+        # ── 변전소 추가 (크기 50% 축소: 765kV=4, 345kV=3, 154kV=2)
         if not subs.empty:
             subs_wgs = subs.to_crs(WGS84)
-            color_map = {"765kV": SUB_STYLE["765kV"]["color"],
-                         "345kV": SUB_STYLE["345kV"]["color"],
-                         "154kV": SUB_STYLE["154kV"]["color"]}
-            radius_map = {"765kV": 9, "345kV": 6, "154kV": 4}
             for _, row in subs_wgs.iterrows():
                 vc = row.get("vclass", "154kV")
                 pt = row.geometry
                 if pt is None:
                     continue
-                folium.CircleMarker(
-                    location=[pt.y, pt.x],
-                    radius=radius_map.get(vc, 4),
-                    color=color_map.get(vc, "#FFFFFF"),
-                    fill=True, fill_opacity=0.85,
-                    tooltip=f"{row.get('name','변전소')} ({vc})"
-                ).add_to(fg_sub)
+                name_str = str(row.get("name") or "변전소")
+                tooltip  = f"{name_str} ({vc})"
 
-        for fg in [fg_154, fg_345, fg_765, fg_hvdc, fg_sub]:
+                if vc in ("345kV", "765kV"):
+                    radius = 4 if vc == "765kV" else 3
+                    folium.CircleMarker(
+                        location=[pt.y, pt.x],
+                        radius=radius,
+                        color="#CC0000",
+                        fill=True, fill_color="#CC0000",
+                        fill_opacity=0.85, weight=0.8,
+                        tooltip=tooltip,
+                    ).add_to(fg_sub_major)
+                elif vc == "154kV":
+                    folium.CircleMarker(
+                        location=[pt.y, pt.x],
+                        radius=2,
+                        color="#333333",
+                        fill=True, fill_color="#333333",
+                        fill_opacity=0.80, weight=0.5,
+                        tooltip=tooltip,
+                    ).add_to(fg_sub_154)
+
+        # ── 레이어 지도에 추가 (154kV 먼저 → 주요 레이어가 위로)
+        for fg in [fg_154, fg_345, fg_765, fg_hvdc, fg_sub_154, fg_sub_major]:
             fg.add_to(m)
 
+        # LayerControl (HTML 이름 태그 허용)
         folium.LayerControl(collapsed=False).add_to(m)
 
         html_path = os.path.join(OUT_DIR, "kr_grid_map_interactive.html")
