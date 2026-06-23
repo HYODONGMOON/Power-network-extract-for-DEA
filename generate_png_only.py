@@ -251,32 +251,47 @@ def _make_legend(ax, show_154kv_sub=True):
         Line2D([0], [0], color="#009999", linewidth=2.2, linestyle="--", label="HVDC"),
         Line2D([0], [0], marker="s", color="none",
                markerfacecolor="#CC0000", markeredgecolor="#880000",
-               markersize=7, linestyle="None", label="변전소 765kV"),
+               markersize=10, linestyle="None", label="변전소 765kV"),
         Line2D([0], [0], marker="o", color="none",
                markerfacecolor="#CC0000", markeredgecolor="#880000",
-               markersize=5, linestyle="None", label="변전소 345kV"),
+               markersize=8, linestyle="None", label="변전소 345kV"),
     ]
     if show_154kv_sub:
         els.append(
             Line2D([0], [0], marker="o", color="none",
                    markerfacecolor="#333333", markeredgecolor="#555555",
-                   markersize=3, linestyle="None", label="변전소 154kV")
+                   markersize=5, linestyle="None", label="변전소 154kV")
         )
-    ax.legend(handles=els, loc="lower left", fontsize=7.5,
+    ax.legend(handles=els, loc="lower left", fontsize=11,
               framealpha=0.92, facecolor="white", edgecolor="#AAAAAA",
-              title="범 례", title_fontsize=8)
+              title="범 례", title_fontsize=12)
 
 
 # ─────────────────────────────────────────────
 # 5. 전국 지도 + 수도권 인셋
 # ─────────────────────────────────────────────
 
-def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(13, 16)):
+def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(16, 16)):
     print(f"  그리는 중: {os.path.basename(output_path)}")
     fig = plt.figure(figsize=figsize, facecolor="white")
 
-    # 메인 지도 (전국)
-    ax_main = fig.add_axes([0.04, 0.04, 0.92, 0.89])
+    # ── 수도권 클로즈업 (왼쪽)
+    ax_ins = fig.add_axes([0.02, 0.07, 0.38, 0.36])
+    _setup_ax(ax_ins,
+              xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
+              ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
+    _draw_layers(ax_ins, show_154kv_sub=show_154kv_sub)
+    ax_ins.set_title("수도권 (확대)", fontsize=10, fontweight="bold",
+                     color="#222222", pad=5)
+    ax_ins.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
+    ax_ins.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+    ax_ins.tick_params(labelsize=7)
+    for sp in ax_ins.spines.values():
+        sp.set_edgecolor("#CC0000")
+        sp.set_linewidth(1.5)
+
+    # ── 전국 지도 (오른쪽)
+    ax_main = fig.add_axes([0.43, 0.04, 0.55, 0.89])
     _setup_ax(ax_main, KOREA_XLIM, KOREA_YLIM)
     _draw_layers(ax_main, show_154kv_sub=show_154kv_sub)
     _make_legend(ax_main, show_154kv_sub=show_154kv_sub)
@@ -284,28 +299,6 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(13, 16))
                       color="#222222", pad=10)
     ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
     ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
-
-    # 수도권 인셋 (우하단)
-    ax_ins = fig.add_axes([0.54, 0.05, 0.41, 0.36])  # 1.2× 확대
-    _setup_ax(ax_ins,
-              xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
-              ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
-    _draw_layers(ax_ins, show_154kv_sub=show_154kv_sub)
-    ax_ins.set_title("수도권 (확대)", fontsize=8, fontweight="bold",
-                     color="#222222", pad=4)
-    ax_ins.tick_params(labelsize=6)
-    for sp in ax_ins.spines.values():
-        sp.set_edgecolor("#CC0000")
-        sp.set_linewidth(1.5)
-
-    # 메인 지도에 수도권 영역 사각형 표시
-    x0, y0, x1, y1 = CAPITAL_BBOX_5179
-    rect = Rectangle((x0, y0), x1 - x0, y1 - y0,
-                     linewidth=1.2, edgecolor="#CC0000",
-                     facecolor="none", zorder=10)
-    ax_main.add_patch(rect)
-    ax_main.text(x1 + 8000, y0, "수도권\n(확대)",
-                 fontsize=7, color="#CC0000", va="bottom")
 
     plt.savefig(output_path, dpi=180, bbox_inches="tight",
                 facecolor="white")

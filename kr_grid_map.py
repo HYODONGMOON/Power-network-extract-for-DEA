@@ -554,53 +554,65 @@ def _make_legend(ax, show_154kv_sub=True, overlay_label=None):
         Line2D([0], [0], marker="s", color="none",
                markerfacecolor=SUB_STYLE["765kV"]["color"],
                markeredgecolor=SUB_STYLE["765kV"].get("markeredgecolor","#880000"),
-               markersize=8, linestyle="None", label="변전소 765kV"),
+               markersize=10, linestyle="None", label="변전소 765kV"),
         Line2D([0], [0], marker="o", color="none",
                markerfacecolor=SUB_STYLE["345kV"]["color"],
                markeredgecolor=SUB_STYLE["345kV"].get("markeredgecolor","#880000"),
-               markersize=6, linestyle="None", label="변전소 345kV"),
+               markersize=8, linestyle="None", label="변전소 345kV"),
     ]
     if show_154kv_sub:
         els.append(
             Line2D([0], [0], marker="o", color="none",
                    markerfacecolor=SUB_STYLE["154kV"]["color"],
                    markeredgecolor="#333333",
-                   markersize=4, linestyle="None", label="변전소 154kV")
+                   markersize=5, linestyle="None", label="변전소 154kV")
         )
     if overlay_label:
         els.append(Line2D([0], [0], color=PLANNED_STYLE["new"]["color"],
                           linewidth=2.0, label=f"{overlay_label} 신규선"))
-    ax.legend(handles=els, loc="lower left", fontsize=7.5,
+    ax.legend(handles=els, loc="lower left", fontsize=11,
               framealpha=0.92, facecolor="white", edgecolor="#AAAAAA",
-              title="범 례", title_fontsize=8)
+              title="범 례", title_fontsize=12)
 
 
 def draw_grid_map(
     admin_gdf_proj, l765, l345, l154, hvdc, subs,
     title="대한민국 전력망 현황",
     output_path=None,
-    show_154kv_sub=True,          # False → 154kV 변전소 숨김
-    show_capital_inset=True,      # 수도권 클로즈업 인셋
+    show_154kv_sub=True,
+    show_capital_inset=True,
     overlay_lines=None,
     overlay_subs=None,
     overlay_label=None,
-    figsize=(13, 16),
+    figsize=(16, 16),
 ):
     """
     전력망 지도를 그리고 PNG 저장.
-    - 흰 육지 / 하늘색 바다 (Netreference 스타일)
-    - show_154kv_sub=False 이면 154kV 변전소 숨김
-    - show_capital_inset=True 이면 우하단에 수도권 클로즈업 추가
+    - 수도권 클로즈업: 왼쪽 배치
+    - 전국 지도: 오른쪽 배치
+    - 빨간 테두리 사각형 없음 (분리 배치로 불필요)
     """
-    fig = plt.figure(figsize=figsize, facecolor=MAP_BG_SEA)
+    fig = plt.figure(figsize=figsize, facecolor="white")
 
-    # ── 메인 지도 축
     if show_capital_inset:
-        # 수도권 인셋을 위해 GridSpec 사용
-        from matplotlib.gridspec import GridSpec
-        gs = GridSpec(1, 1, figure=fig, left=0.04, right=0.96,
-                      top=0.93, bottom=0.04)
-        ax_main = fig.add_subplot(gs[0, 0])
+        # ── 수도권 클로즈업 (왼쪽)
+        ax_inset = fig.add_axes([0.02, 0.07, 0.38, 0.36])
+        _style_ax(ax_inset,
+                  xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
+                  ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
+        _plot_layers(ax_inset, l765, l345, l154, hvdc, subs,
+                     show_154kv_sub=show_154kv_sub)
+        ax_inset.set_title("수도권 (확대)", fontsize=10, fontweight="bold",
+                            color="#222222", pad=5)
+        ax_inset.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
+        ax_inset.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+        ax_inset.tick_params(labelsize=7)
+        for spine in ax_inset.spines.values():
+            spine.set_edgecolor("#CC0000")
+            spine.set_linewidth(1.5)
+
+        # ── 전국 지도 (오른쪽)
+        ax_main = fig.add_axes([0.43, 0.04, 0.55, 0.89])
     else:
         ax_main = fig.add_axes([0.04, 0.04, 0.92, 0.89])
 
@@ -615,40 +627,8 @@ def draw_grid_map(
     ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
     ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
 
-    # ── 수도권 클로즈업 인셋
-    if show_capital_inset:
-        # 인셋 axes: 우하단 (전체 figure 기준 비율)
-        ax_inset = fig.add_axes([0.56, 0.05, 0.40, 0.36])  # 1.2× 확대
-        _style_ax(ax_inset,
-                  xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
-                  ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
-        _plot_layers(ax_inset, l765, l345, l154, hvdc, subs,
-                     show_154kv_sub=show_154kv_sub)
-
-        ax_inset.set_title("수도권 (확대)", fontsize=8, fontweight="bold",
-                            color="#222222", pad=4)
-        ax_inset.set_xlabel("")
-        ax_inset.set_ylabel("")
-        ax_inset.tick_params(labelsize=6)
-
-        # 메인 지도에 수도권 범위 사각형 표시
-        from matplotlib.patches import Rectangle
-        x0, y0, x1, y1 = CAPITAL_BBOX_5179
-        rect = Rectangle((x0, y0), x1-x0, y1-y0,
-                          linewidth=1.2, edgecolor="#CC0000",
-                          facecolor="none", linestyle="-", zorder=10)
-        ax_main.add_patch(rect)
-        # "수도권" 라벨
-        ax_main.text(x1 + 5000, y0, "수도권\n(확대)", fontsize=7,
-                     color="#CC0000", va="bottom")
-
-        # 인셋 테두리 강조
-        for spine in ax_inset.spines.values():
-            spine.set_edgecolor("#CC0000")
-            spine.set_linewidth(1.5)
-
     plt.savefig(output_path, dpi=180, bbox_inches="tight",
-                facecolor=fig.get_facecolor())
+                facecolor="white")
     print(f"  [OK] {output_path}")
     plt.close(fig)
 
