@@ -278,32 +278,25 @@ def _make_legend(ax, show_154kv_sub=True):
 # 5. 전국 지도 + 수도권 인셋
 # ─────────────────────────────────────────────
 
-def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(16, 16)):
+def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(14, 14)):
     """
-    레이아웃 (Netreference 스타일):
-      ┌─────────────────────────────────────────┐
-      │ [수도권 인셋] │                         │
-      │  (타이틀 없음)│      전국 지도          │
-      │               │      (우측 배치)        │
-      │ [──── 범 례]  │                         │
-      │  (인셋과 동일│                         │
-      │   너비, 긴 선)│                         │
-      └─────────────────────────────────────────┘
+    전국 지도 하나의 프레임 안에 수도권 인셋 + 범례를 겹쳐 배치.
+    (덴마크 Netreference 스타일)
+
+    ┌───────────────────────────────────────────────────┐
+    │  ┌──────────────┐                                 │
+    │  │ 수도권 인셋  │           전국 지도             │
+    │  │  (타이틀 없음)│          (하나의 큰 프레임)    │
+    │  ├──────────────┤                                 │
+    │  │  ─── 범 례   │                                 │
+    │  └──────────────┘                                 │
+    └───────────────────────────────────────────────────┘
     """
     print(f"  그리는 중: {os.path.basename(output_path)}")
-
-    # 인셋·범례 좌측 열 너비 (figure 비율)
-    LEFT_W = 0.27   # 인셋 & 범례 공통 너비
-    LEFT_X = 0.02   # 좌측 시작 x
-    INS_BOT = 0.56  # 인셋 하단 y
-    INS_H   = 0.37  # 인셋 높이
-    LEG_BOT = 0.05  # 범례 하단 y
-    LEG_H   = INS_BOT - LEG_BOT - 0.02  # 범례 높이 (인셋 아래까지)
-
     fig = plt.figure(figsize=figsize, facecolor="white")
 
-    # ── 전국 지도 (우측 이동, 좌측 열 확보)
-    ax_main = fig.add_axes([LEFT_X + LEFT_W + 0.03, 0.04, 0.68, 0.89])
+    # ── 전국 지도 (하나의 큰 프레임 — 전체 figure 차지)
+    ax_main = fig.add_axes([0.07, 0.05, 0.91, 0.90])
     _setup_ax(ax_main, KOREA_XLIM, KOREA_YLIM)
     _draw_layers(ax_main, show_154kv_sub=show_154kv_sub)
     ax_main.set_title(title, fontsize=12, fontweight="bold",
@@ -311,8 +304,11 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(16, 16))
     ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
     ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
 
-    # ── 수도권 클로즈업 (좌측 상단, 타이틀 없음)
-    ax_ins = fig.add_axes([LEFT_X, INS_BOT, LEFT_W, INS_H])
+    # ── 수도권 인셋 (전국 지도 위에 겹침, 좌측 상단 빈 공간)
+    # figure 좌표 기준으로 전국 지도의 좌측 상단 빈 영역(황해/북한 자리)에 배치
+    INSET_X, INSET_Y = 0.08, 0.56   # 인셋 좌하단 (figure 좌표)
+    INSET_W, INSET_H = 0.27, 0.36   # 인셋 너비·높이
+    ax_ins = fig.add_axes([INSET_X, INSET_Y, INSET_W, INSET_H])
     _setup_ax(ax_ins,
               xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
               ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
@@ -320,27 +316,28 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(16, 16))
     ax_ins.tick_params(labelsize=6)
     for sp in ax_ins.spines.values():
         sp.set_edgecolor("#CC0000")
-        sp.set_linewidth(1.5)
+        sp.set_linewidth(1.8)
 
-    # ── 범례 (좌측 하단, 인셋과 동일 너비, 긴 선 샘플)
-    ax_leg = fig.add_axes([LEFT_X, LEG_BOT, LEFT_W, LEG_H])
+    # ── 범례 (인셋 바로 아래, 동일 너비로 겹쳐 배치)
+    LEG_GAP = 0.01
+    ax_leg = fig.add_axes([INSET_X, 0.07, INSET_W, INSET_Y - 0.07 - LEG_GAP])
     ax_leg.axis("off")
     ax_leg.legend(
         handles=_legend_handles(show_154kv_sub),
         loc="upper left",
         bbox_to_anchor=(0, 1),
         bbox_transform=ax_leg.transAxes,
-        mode="expand",          # 범례 박스를 axes 너비에 맞춤
+        mode="expand",       # 인셋과 동일 너비로 자동 확장
         borderaxespad=0,
         fontsize=11,
         title="범 례",
         title_fontsize=12,
-        handlelength=5.0,       # 선 샘플 길게
+        handlelength=5.0,    # 선 샘플 길게
         handleheight=1.2,
         handletextpad=1.0,
         borderpad=0.9,
         labelspacing=0.85,
-        framealpha=0.95,
+        framealpha=0.97,
         facecolor="white",
         edgecolor="#AAAAAA",
         frameon=True,

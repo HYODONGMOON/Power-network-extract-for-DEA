@@ -598,18 +598,13 @@ def draw_grid_map(
     - 전국 지도: 오른쪽 배치
     - 빨간 테두리 사각형 없음 (분리 배치로 불필요)
     """
-    # 인셋·범례 좌측 열 공통 설정
-    LEFT_W = 0.27
-    LEFT_X = 0.02
-    INS_BOT = 0.56
-    INS_H   = 0.37
-    LEG_BOT = 0.05
-    LEG_H   = INS_BOT - LEG_BOT - 0.02
+    INSET_X, INSET_Y = 0.08, 0.56
+    INSET_W, INSET_H = 0.27, 0.36
 
     fig = plt.figure(figsize=figsize, facecolor="white")
 
-    # ── 전국 지도 (우측 이동, 좌측 열 확보)
-    ax_main = fig.add_axes([LEFT_X + LEFT_W + 0.03, 0.04, 0.68, 0.89])
+    # ── 전국 지도 (하나의 큰 프레임)
+    ax_main = fig.add_axes([0.07, 0.05, 0.91, 0.90])
     _style_ax(ax_main, xlim=KOREA_XLIM, ylim=KOREA_YLIM)
     _plot_layers(ax_main, l765, l345, l154, hvdc, subs,
                  show_154kv_sub=show_154kv_sub,
@@ -620,8 +615,8 @@ def draw_grid_map(
     ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
 
     if show_capital_inset:
-        # ── 수도권 클로즈업 (좌측 상단, 타이틀 없음)
-        ax_inset = fig.add_axes([LEFT_X, INS_BOT, LEFT_W, INS_H])
+        # ── 수도권 인셋 (전국 지도 위에 겹침, 좌측 상단)
+        ax_inset = fig.add_axes([INSET_X, INSET_Y, INSET_W, INSET_H])
         _style_ax(ax_inset,
                   xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
                   ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
@@ -630,10 +625,10 @@ def draw_grid_map(
         ax_inset.tick_params(labelsize=6)
         for spine in ax_inset.spines.values():
             spine.set_edgecolor("#CC0000")
-            spine.set_linewidth(1.5)
+            spine.set_linewidth(1.8)
 
-        # ── 범례 (좌측 하단, 인셋과 동일 너비, 긴 선 샘플)
-        ax_leg = fig.add_axes([LEFT_X, LEG_BOT, LEFT_W, LEG_H])
+        # ── 범례 (인셋 바로 아래, 동일 너비로 겹쳐 배치)
+        ax_leg = fig.add_axes([INSET_X, 0.07, INSET_W, INSET_Y - 0.08])
         ax_leg.axis("off")
         ax_leg.legend(
             handles=_legend_handles(show_154kv_sub, overlay_label),
@@ -650,7 +645,7 @@ def draw_grid_map(
             handletextpad=1.0,
             borderpad=0.9,
             labelspacing=0.85,
-            framealpha=0.95,
+            framealpha=0.97,
             facecolor="white",
             edgecolor="#AAAAAA",
             frameon=True,
