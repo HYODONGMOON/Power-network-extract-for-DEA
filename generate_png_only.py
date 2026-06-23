@@ -174,7 +174,10 @@ _skx0, _sky0 = _tr_sk.transform(_SK_WGS84[0], _SK_WGS84[1])   # SW
 _skx1, _sky1 = _tr_sk.transform(_SK_WGS84[2], _SK_WGS84[3])   # NE
 _pad_x = (_skx1 - _skx0) * 0.03
 _pad_y = (_sky1 - _sky0) * 0.03
-KOREA_XLIM = (_skx0 - _pad_x, _skx1 + _pad_x)
+_base_xlim = (_skx0 - _pad_x, _skx1 + _pad_x)
+# 국토를 우측으로 이동: 전체 x 범위의 1/4만큼 왼쪽 경계 확장
+_x_shift = (_base_xlim[1] - _base_xlim[0]) / 4
+KOREA_XLIM = (_base_xlim[0] - _x_shift, _base_xlim[1])
 KOREA_YLIM = (_sky0 - _pad_y, _sky1 + _pad_y)
 
 # 수도권 bbox → LEN_CRS
@@ -325,21 +328,17 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(14, 14))
     ax_leg.legend(
         handles=_legend_handles(show_154kv_sub),
         loc="upper left",
-        bbox_to_anchor=(0, 1),
-        bbox_transform=ax_leg.transAxes,
-        mode="expand",       # 인셋과 동일 너비로 자동 확장
-        borderaxespad=0,
         fontsize=11,
         title="범 례",
         title_fontsize=12,
-        handlelength=5.0,    # 선 샘플 길게
+        handlelength=4.5,
         handleheight=1.2,
         handletextpad=1.0,
         borderpad=0.9,
         labelspacing=0.85,
         framealpha=0.97,
         facecolor="white",
-        edgecolor="#AAAAAA",
+        edgecolor="#555555",
         frameon=True,
     )
 
