@@ -304,12 +304,14 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(14, 14))
     _draw_layers(ax_main, show_154kv_sub=show_154kv_sub)
     ax_main.set_title(title, fontsize=12, fontweight="bold",
                       color="#222222", pad=10)
-    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
-    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+    # 축 눈금값(숫자) 제거
+    ax_main.tick_params(labelbottom=False, labelleft=False)
+    ax_main.set_xlabel("")
+    ax_main.set_ylabel("")
 
     # ── 수도권 인셋 (전국 지도 위에 겹침, 좌측 상단 빈 공간)
-    # figure 좌표 기준으로 전국 지도의 좌측 상단 빈 영역(황해/북한 자리)에 배치
-    INSET_X, INSET_Y = 0.08, 0.56   # 인셋 좌하단 (figure 좌표)
+    # 모서리에서 약간 여백 확보: INSET_X/Y 를 0.10/0.54로 조정
+    INSET_X, INSET_Y = 0.10, 0.54   # 인셋 좌하단 (figure 좌표)
     INSET_W, INSET_H = 0.27, 0.36   # 인셋 너비·높이
     ax_ins = fig.add_axes([INSET_X, INSET_Y, INSET_W, INSET_H])
     _setup_ax(ax_ins,
@@ -321,9 +323,10 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(14, 14))
         sp.set_edgecolor("#CC0000")
         sp.set_linewidth(1.8)
 
-    # ── 범례 (인셋 바로 아래, 동일 너비로 겹쳐 배치)
-    LEG_GAP = 0.01
-    ax_leg = fig.add_axes([INSET_X, 0.07, INSET_W, INSET_Y - 0.07 - LEG_GAP])
+    # ── 범례 (인셋 아래, 약간 간격 두고 배치)
+    LEG_GAP = 0.02
+    LEG_BOT = 0.04   # 범례 하단을 약간 아래로
+    ax_leg = fig.add_axes([INSET_X, LEG_BOT, INSET_W, INSET_Y - LEG_BOT - LEG_GAP])
     ax_leg.axis("off")
     ax_leg.legend(
         handles=_legend_handles(show_154kv_sub),

@@ -601,8 +601,10 @@ def draw_grid_map(
     - 전국 지도: 오른쪽 배치
     - 빨간 테두리 사각형 없음 (분리 배치로 불필요)
     """
-    INSET_X, INSET_Y = 0.08, 0.56
+    INSET_X, INSET_Y = 0.10, 0.54   # 모서리 여백 확보
     INSET_W, INSET_H = 0.27, 0.36
+    LEG_GAP = 0.02
+    LEG_BOT = 0.04
 
     fig = plt.figure(figsize=figsize, facecolor="white")
 
@@ -614,8 +616,10 @@ def draw_grid_map(
                  overlay_lines=overlay_lines, overlay_subs=overlay_subs)
     ax_main.set_title(title, fontsize=13, fontweight="bold",
                       color="#222222", pad=10)
-    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
-    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+    # 축 눈금값(숫자) 제거
+    ax_main.tick_params(labelbottom=False, labelleft=False)
+    ax_main.set_xlabel("")
+    ax_main.set_ylabel("")
 
     if show_capital_inset:
         # ── 수도권 인셋 (전국 지도 위에 겹침, 좌측 상단)
@@ -630,8 +634,8 @@ def draw_grid_map(
             spine.set_edgecolor("#CC0000")
             spine.set_linewidth(1.8)
 
-        # ── 범례 (인셋 바로 아래, 동일 너비로 겹쳐 배치)
-        ax_leg = fig.add_axes([INSET_X, 0.07, INSET_W, INSET_Y - 0.08])
+        # ── 범례 (인셋 아래, 약간 간격 두고 배치)
+        ax_leg = fig.add_axes([INSET_X, LEG_BOT, INSET_W, INSET_Y - LEG_BOT - LEG_GAP])
         ax_leg.axis("off")
         ax_leg.legend(
             handles=_legend_handles(show_154kv_sub, overlay_label),
