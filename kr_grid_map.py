@@ -618,7 +618,7 @@ def draw_grid_map(
     # ── 수도권 클로즈업 인셋
     if show_capital_inset:
         # 인셋 axes: 우하단 (전체 figure 기준 비율)
-        ax_inset = fig.add_axes([0.53, 0.05, 0.43, 0.39])  # 1.3× 확대
+        ax_inset = fig.add_axes([0.56, 0.05, 0.40, 0.36])  # 1.2× 확대
         _style_ax(ax_inset,
                   xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
                   ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
