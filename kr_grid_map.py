@@ -449,8 +449,11 @@ _pad_y = (_sky1 - _sky0) * 0.03
 _base_xlim = (_skx0 - _pad_x, _skx1 + _pad_x)
 # 국토를 우측으로 이동: 전체 x 범위의 1/4만큼 왼쪽 경계 확장
 _x_shift = (_base_xlim[1] - _base_xlim[0]) / 4
-KOREA_XLIM = (_base_xlim[0] - _x_shift, _base_xlim[1])
-KOREA_YLIM = (_sky0 - _pad_y, _sky1 + _pad_y)
+# 오른쪽 여백: 독도(131.87°E) 기준으로 오른쪽 간격을 절반으로 축소
+_dokdo_x, _ = _tr_sk.transform(131.87, 37.24)
+_right_gap  = _base_xlim[1] - _dokdo_x
+KOREA_XLIM  = (_base_xlim[0] - _x_shift, _dokdo_x + _right_gap * 0.5)
+KOREA_YLIM  = (_sky0 - _pad_y, _sky1 + _pad_y)
 
 # 수도권 bbox (LEN_CRS 변환)
 _tr = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
@@ -601,10 +604,14 @@ def draw_grid_map(
     - 전국 지도: 오른쪽 배치
     - 빨간 테두리 사각형 없음 (분리 배치로 불필요)
     """
-    INSET_X, INSET_Y = 0.10, 0.54   # 모서리 여백 확보
-    INSET_W, INSET_H = 0.27, 0.36
-    LEG_GAP = 0.02
-    LEG_BOT = 0.04
+    MAIN_TOP = 0.05 + 0.90
+    TOP_GAP  = 0.10
+    INSET_X  = 0.10
+    INSET_W  = round(0.27 * 1.1, 3)
+    INSET_H  = round(0.36 * 1.1, 3)
+    INSET_Y  = MAIN_TOP - TOP_GAP - INSET_H
+    LEG_GAP  = 0.02
+    LEG_BOT  = 0.04
 
     fig = plt.figure(figsize=figsize, facecolor="white")
 
@@ -634,12 +641,14 @@ def draw_grid_map(
             spine.set_edgecolor("#CC0000")
             spine.set_linewidth(1.8)
 
-        # ── 범례 (인셋 아래, 약간 간격 두고 배치)
+        # ── 범례 (인셋 아래, 좌측 모서리 간격 인셋과 동일)
         ax_leg = fig.add_axes([INSET_X, LEG_BOT, INSET_W, INSET_Y - LEG_BOT - LEG_GAP])
         ax_leg.axis("off")
         ax_leg.legend(
             handles=_legend_handles(show_154kv_sub, overlay_label),
             loc="upper left",
+            bbox_to_anchor=(0, 1),
+            bbox_transform=ax_leg.transAxes,
             fontsize=11,
             title="범 례",
             title_fontsize=12,

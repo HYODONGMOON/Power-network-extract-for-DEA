@@ -177,8 +177,11 @@ _pad_y = (_sky1 - _sky0) * 0.03
 _base_xlim = (_skx0 - _pad_x, _skx1 + _pad_x)
 # 국토를 우측으로 이동: 전체 x 범위의 1/4만큼 왼쪽 경계 확장
 _x_shift = (_base_xlim[1] - _base_xlim[0]) / 4
-KOREA_XLIM = (_base_xlim[0] - _x_shift, _base_xlim[1])
-KOREA_YLIM = (_sky0 - _pad_y, _sky1 + _pad_y)
+# 오른쪽 여백: 독도(131.87°E) 기준으로 오른쪽 간격을 절반으로 축소
+_dokdo_x, _ = _tr_sk.transform(131.87, 37.24)
+_right_gap  = _base_xlim[1] - _dokdo_x
+KOREA_XLIM  = (_base_xlim[0] - _x_shift, _dokdo_x + _right_gap * 0.5)
+KOREA_YLIM  = (_sky0 - _pad_y, _sky1 + _pad_y)
 
 # 수도권 bbox → LEN_CRS
 _tr = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
@@ -309,10 +312,16 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(14, 14))
     ax_main.set_xlabel("")
     ax_main.set_ylabel("")
 
-    # ── 수도권 인셋 (전국 지도 위에 겹침, 좌측 상단 빈 공간)
-    # 모서리에서 약간 여백 확보: INSET_X/Y 를 0.10/0.54로 조정
-    INSET_X, INSET_Y = 0.10, 0.54   # 인셋 좌하단 (figure 좌표)
-    INSET_W, INSET_H = 0.27, 0.36   # 인셋 너비·높이
+    # ── 수도권 인셋 배치 설정
+    # - 상단 여백 2배 (기존 0.05 → 0.10)
+    # - 크기 1.1배 확대
+    MAIN_TOP   = 0.05 + 0.90          # 전국 지도 상단 (figure y)
+    TOP_GAP    = 0.10                 # 상단 간격 (기존 0.05의 2배)
+    INSET_X    = 0.10                 # 좌측 시작 x
+    INSET_W    = round(0.27 * 1.1, 3) # 0.297 → 약 0.30
+    INSET_H    = round(0.36 * 1.1, 3) # 0.396 → 약 0.40
+    INSET_Y    = MAIN_TOP - TOP_GAP - INSET_H  # 상단 여백 확보 후 배치
+
     ax_ins = fig.add_axes([INSET_X, INSET_Y, INSET_W, INSET_H])
     _setup_ax(ax_ins,
               xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
@@ -323,14 +332,16 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(14, 14))
         sp.set_edgecolor("#CC0000")
         sp.set_linewidth(1.8)
 
-    # ── 범례 (인셋 아래, 약간 간격 두고 배치)
+    # ── 범례 (인셋 아래, 좌측 모서리 간격 인셋과 동일하게 정렬)
     LEG_GAP = 0.02
-    LEG_BOT = 0.04   # 범례 하단을 약간 아래로
+    LEG_BOT = 0.04
     ax_leg = fig.add_axes([INSET_X, LEG_BOT, INSET_W, INSET_Y - LEG_BOT - LEG_GAP])
     ax_leg.axis("off")
     ax_leg.legend(
         handles=_legend_handles(show_154kv_sub),
         loc="upper left",
+        bbox_to_anchor=(0, 1),         # 범례 좌상단을 ax_leg 좌상단에 맞춤
+        bbox_transform=ax_leg.transAxes,
         fontsize=11,
         title="범 례",
         title_fontsize=12,
