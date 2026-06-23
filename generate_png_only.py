@@ -149,18 +149,19 @@ if not subs.empty:
     print(f"    변전소 분류: 765kV={n765}  345kV={n345}  154kV={n154}")
 
 # ─────────────────────────────────────────────
-# 3. 한국 영토 범위 계산 (admin_provinces 기반)
-#    — 지도 좌우/상하 범위를 한국 국토에 맞춤
+# 3. 한국 영토 범위 (대한민국 지리 좌표 고정)
+#    — admin.total_bounds는 북한 영토를 포함할 수 있으므로
+#      대한민국 실제 경계를 직접 지정
+#      (WGS84 기준: 북위 33~38.7°, 동경 124.5~132°)
 # ─────────────────────────────────────────────
-if not admin.empty:
-    b = admin.total_bounds          # [minx, miny, maxx, maxy]
-    pad_x = (b[2] - b[0]) * 0.04
-    pad_y = (b[3] - b[1]) * 0.04
-    KOREA_XLIM = (b[0] - pad_x, b[2] + pad_x)
-    KOREA_YLIM = (b[1] - pad_y, b[3] + pad_y)
-else:
-    KOREA_XLIM = None
-    KOREA_YLIM = None
+_SK_WGS84 = (124.5, 33.0, 132.0, 38.7)   # (서경, 남위, 동경, 북위)
+_tr_sk = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
+_skx0, _sky0 = _tr_sk.transform(_SK_WGS84[0], _SK_WGS84[1])   # SW
+_skx1, _sky1 = _tr_sk.transform(_SK_WGS84[2], _SK_WGS84[3])   # NE
+_pad_x = (_skx1 - _skx0) * 0.03
+_pad_y = (_sky1 - _sky0) * 0.03
+KOREA_XLIM = (_skx0 - _pad_x, _skx1 + _pad_x)
+KOREA_YLIM = (_sky0 - _pad_y, _sky1 + _pad_y)
 
 # 수도권 bbox → LEN_CRS
 _tr = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
