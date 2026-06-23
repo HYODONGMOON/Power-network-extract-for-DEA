@@ -56,6 +56,20 @@ from matplotlib.patches import Rectangle
 
 import contextily as ctx
 
+# 한글 폰트 설정 (Windows: 맑은 고딕 / 없으면 NanumGothic 시도)
+import matplotlib.font_manager as fm
+def _set_korean_font():
+    candidates = ["Malgun Gothic", "맑은 고딕", "NanumGothic", "NanumBarunGothic",
+                  "AppleGothic", "UnDotum"]
+    available = {f.name for f in fm.fontManager.ttflist}
+    for name in candidates:
+        if name in available:
+            matplotlib.rcParams["font.family"] = name
+            break
+    matplotlib.rcParams["axes.unicode_minus"] = False
+
+_set_korean_font()
+
 # ─────────────────────────────────────────────
 # 설정
 # ─────────────────────────────────────────────
