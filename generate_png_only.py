@@ -243,7 +243,8 @@ def _draw_layers(ax, show_154kv_sub=True):
                    alpha=0.92)
 
 
-def _make_legend(ax, show_154kv_sub=True):
+def _legend_handles(show_154kv_sub=True):
+    """범례 핸들 목록 반환 (axes에 독립 배치 가능)"""
     els = [
         Line2D([0], [0], color="#CC0000", linewidth=2.8, label="765 kV 송전선"),
         Line2D([0], [0], color="#E05000", linewidth=1.6, label="345 kV 송전선"),
@@ -262,7 +263,13 @@ def _make_legend(ax, show_154kv_sub=True):
                    markerfacecolor="#333333", markeredgecolor="#555555",
                    markersize=5, linestyle="None", label="변전소 154kV")
         )
-    ax.legend(handles=els, loc="lower left", fontsize=11,
+    return els
+
+
+def _make_legend(ax, show_154kv_sub=True):
+    """수도권 단독 클로즈업 지도용 (axes에 직접 추가)"""
+    ax.legend(handles=_legend_handles(show_154kv_sub),
+              loc="lower left", fontsize=11,
               framealpha=0.92, facecolor="white", edgecolor="#AAAAAA",
               title="범 례", title_fontsize=12)
 
@@ -272,33 +279,51 @@ def _make_legend(ax, show_154kv_sub=True):
 # ─────────────────────────────────────────────
 
 def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(16, 16)):
+    """
+    레이아웃 (덴마크 Netreference 스타일):
+      ┌──────────────────────────────────────┐
+      │  [수도권 인셋]  │                    │
+      │                 │   전국 지도        │
+      │  [범  례]       │  (우측 배치)       │
+      └──────────────────────────────────────┘
+    - 전국 지도: 우측으로 이동
+    - 수도권 인셋: 좌측 상단 (서울 위치 높이에 맞춤)
+    - 범례: 좌측 하단 (인셋 아래)
+    """
     print(f"  그리는 중: {os.path.basename(output_path)}")
     fig = plt.figure(figsize=figsize, facecolor="white")
 
-    # ── 수도권 클로즈업 (왼쪽)
-    ax_ins = fig.add_axes([0.02, 0.07, 0.38, 0.36])
+    # ── 전국 지도 (우측 이동)
+    ax_main = fig.add_axes([0.30, 0.04, 0.68, 0.89])
+    _setup_ax(ax_main, KOREA_XLIM, KOREA_YLIM)
+    _draw_layers(ax_main, show_154kv_sub=show_154kv_sub)
+    ax_main.set_title(title, fontsize=12, fontweight="bold",
+                      color="#222222", pad=10)
+    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
+    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+
+    # ── 수도권 클로즈업 (좌측 상단 — 서울 위치 높이에 맞춤)
+    # 서울은 한국 전체 위도 범위의 약 상위 20% → figure y ≈ 0.60~0.92
+    ax_ins = fig.add_axes([0.02, 0.58, 0.26, 0.33])
     _setup_ax(ax_ins,
               xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
               ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
     _draw_layers(ax_ins, show_154kv_sub=show_154kv_sub)
     ax_ins.set_title("수도권 (확대)", fontsize=10, fontweight="bold",
                      color="#222222", pad=5)
-    ax_ins.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
-    ax_ins.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
-    ax_ins.tick_params(labelsize=7)
+    ax_ins.tick_params(labelsize=6)
     for sp in ax_ins.spines.values():
         sp.set_edgecolor("#CC0000")
         sp.set_linewidth(1.5)
 
-    # ── 전국 지도 (오른쪽)
-    ax_main = fig.add_axes([0.43, 0.04, 0.55, 0.89])
-    _setup_ax(ax_main, KOREA_XLIM, KOREA_YLIM)
-    _draw_layers(ax_main, show_154kv_sub=show_154kv_sub)
-    _make_legend(ax_main, show_154kv_sub=show_154kv_sub)
-    ax_main.set_title(title, fontsize=12, fontweight="bold",
-                      color="#222222", pad=10)
-    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
-    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+    # ── 범례 (좌측 하단 — 인셋 아래)
+    ax_leg = fig.add_axes([0.02, 0.06, 0.26, 0.48])
+    ax_leg.axis("off")
+    ax_leg.legend(handles=_legend_handles(show_154kv_sub),
+                  loc="upper left", fontsize=11,
+                  framealpha=0.95, facecolor="white", edgecolor="#AAAAAA",
+                  title="범 례", title_fontsize=12, frameon=True,
+                  borderpad=1.0, labelspacing=0.8)
 
     plt.savefig(output_path, dpi=180, bbox_inches="tight",
                 facecolor="white")

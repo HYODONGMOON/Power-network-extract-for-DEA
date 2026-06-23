@@ -540,8 +540,8 @@ def _style_ax(ax, xlim=None, ylim=None):
         spine.set_linewidth(0.6)
 
 
-def _make_legend(ax, show_154kv_sub=True, overlay_label=None):
-    """범례 생성"""
+def _legend_handles(show_154kv_sub=True, overlay_label=None):
+    """범례 핸들 목록 반환 (axes에 독립 배치 가능)"""
     els = [
         Line2D([0], [0], color=LAYER_STYLE["765kV"]["color"],
                linewidth=2.5, label="765 kV 송전선"),
@@ -570,7 +570,13 @@ def _make_legend(ax, show_154kv_sub=True, overlay_label=None):
     if overlay_label:
         els.append(Line2D([0], [0], color=PLANNED_STYLE["new"]["color"],
                           linewidth=2.0, label=f"{overlay_label} 신규선"))
-    ax.legend(handles=els, loc="lower left", fontsize=11,
+    return els
+
+
+def _make_legend(ax, show_154kv_sub=True, overlay_label=None):
+    """수도권 단독 클로즈업 지도용 (axes에 직접 추가)"""
+    ax.legend(handles=_legend_handles(show_154kv_sub, overlay_label),
+              loc="lower left", fontsize=11,
               framealpha=0.92, facecolor="white", edgecolor="#AAAAAA",
               title="범 례", title_fontsize=12)
 
@@ -594,9 +600,20 @@ def draw_grid_map(
     """
     fig = plt.figure(figsize=figsize, facecolor="white")
 
+    # ── 전국 지도 (우측 이동)
+    ax_main = fig.add_axes([0.30, 0.04, 0.68, 0.89])
+    _style_ax(ax_main, xlim=KOREA_XLIM, ylim=KOREA_YLIM)
+    _plot_layers(ax_main, l765, l345, l154, hvdc, subs,
+                 show_154kv_sub=show_154kv_sub,
+                 overlay_lines=overlay_lines, overlay_subs=overlay_subs)
+    ax_main.set_title(title, fontsize=13, fontweight="bold",
+                      color="#222222", pad=10)
+    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
+    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+
     if show_capital_inset:
-        # ── 수도권 클로즈업 (왼쪽)
-        ax_inset = fig.add_axes([0.02, 0.07, 0.38, 0.36])
+        # ── 수도권 클로즈업 (좌측 상단 — 서울 위치 높이에 맞춤)
+        ax_inset = fig.add_axes([0.02, 0.58, 0.26, 0.33])
         _style_ax(ax_inset,
                   xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
                   ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
@@ -604,28 +621,19 @@ def draw_grid_map(
                      show_154kv_sub=show_154kv_sub)
         ax_inset.set_title("수도권 (확대)", fontsize=10, fontweight="bold",
                             color="#222222", pad=5)
-        ax_inset.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
-        ax_inset.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
-        ax_inset.tick_params(labelsize=7)
+        ax_inset.tick_params(labelsize=6)
         for spine in ax_inset.spines.values():
             spine.set_edgecolor("#CC0000")
             spine.set_linewidth(1.5)
 
-        # ── 전국 지도 (오른쪽)
-        ax_main = fig.add_axes([0.43, 0.04, 0.55, 0.89])
-    else:
-        ax_main = fig.add_axes([0.04, 0.04, 0.92, 0.89])
-
-    _style_ax(ax_main, xlim=KOREA_XLIM, ylim=KOREA_YLIM)
-    _plot_layers(ax_main, l765, l345, l154, hvdc, subs,
-                 show_154kv_sub=show_154kv_sub,
-                 overlay_lines=overlay_lines, overlay_subs=overlay_subs)
-    _make_legend(ax_main, show_154kv_sub=show_154kv_sub, overlay_label=overlay_label)
-
-    ax_main.set_title(title, fontsize=13, fontweight="bold",
-                      color="#222222", pad=10)
-    ax_main.set_xlabel("경도 (°E)", fontsize=8, color="#555555")
-    ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
+        # ── 범례 (좌측 하단 — 인셋 아래)
+        ax_leg = fig.add_axes([0.02, 0.06, 0.26, 0.48])
+        ax_leg.axis("off")
+        ax_leg.legend(handles=_legend_handles(show_154kv_sub, overlay_label),
+                      loc="upper left", fontsize=11,
+                      framealpha=0.95, facecolor="white", edgecolor="#AAAAAA",
+                      title="범 례", title_fontsize=12, frameon=True,
+                      borderpad=1.0, labelspacing=0.8)
 
     plt.savefig(output_path, dpi=180, bbox_inches="tight",
                 facecolor="white")
