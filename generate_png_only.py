@@ -286,7 +286,7 @@ def draw_national_map(output_path, title, show_154kv_sub=True, figsize=(13, 16))
     ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
 
     # 수도권 인셋 (우하단)
-    ax_ins = fig.add_axes([0.61, 0.05, 0.34, 0.30])
+    ax_ins = fig.add_axes([0.51, 0.05, 0.44, 0.39])  # 1.3× 확대
     _setup_ax(ax_ins,
               xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
               ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
