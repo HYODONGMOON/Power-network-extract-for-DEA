@@ -61,6 +61,7 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 import matplotlib.patheffects as pe
 import argparse
+import contextily as ctx
 
 # ─────────────────────────────────────────────
 # 설정
@@ -421,12 +422,20 @@ except Exception as e:
 # ─────────────────────────────────────────────
 print("[7] 정적 지도 생성 중...")
 
-# 한국 육지 외곽선 (시·도 합집합) — 바다와 구분용
-korea_land = admin_5179.dissolve().geometry.iloc[0]
-korea_land_gdf = gpd.GeoDataFrame(geometry=[korea_land], crs=LEN_CRS)
+# 대한민국 지도 범위 고정 (WGS84 → EPSG:5179)
+# — admin.dissolve() 폴리곤은 영해를 포함해 넓게 퍼지므로
+#   실제 대한민국 지리 좌표로 직접 지정
+from pyproj import Transformer
+_tr_sk = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
+_SK_WGS84 = (124.5, 33.0, 132.0, 38.7)   # (서경, 남위, 동경, 북위)
+_skx0, _sky0 = _tr_sk.transform(_SK_WGS84[0], _SK_WGS84[1])
+_skx1, _sky1 = _tr_sk.transform(_SK_WGS84[2], _SK_WGS84[3])
+_pad_x = (_skx1 - _skx0) * 0.03
+_pad_y = (_sky1 - _sky0) * 0.03
+KOREA_XLIM = (_skx0 - _pad_x, _skx1 + _pad_x)
+KOREA_YLIM = (_sky0 - _pad_y, _sky1 + _pad_y)
 
 # 수도권 bbox (LEN_CRS 변환)
-from pyproj import Transformer
 _tr = Transformer.from_crs(WGS84, LEN_CRS, always_xy=True)
 _x0, _y0 = _tr.transform(CAPITAL_BBOX_WGS[0], CAPITAL_BBOX_WGS[1])
 _x1, _y1 = _tr.transform(CAPITAL_BBOX_WGS[2], CAPITAL_BBOX_WGS[3])
@@ -483,17 +492,34 @@ def _plot_layers(ax, l765, l345, l154, hvdc, subs, show_154kv_sub=True,
 
 
 def _style_ax(ax, xlim=None, ylim=None):
-    """축 공통 스타일 (밝은 배경)"""
-    ax.set_facecolor(MAP_BG_SEA)
-    # 육지 폴리곤 (흰색)
-    korea_land_gdf.plot(ax=ax, color=MAP_BG_LAND, zorder=0)
-    # 시·도 경계
-    admin_5179.boundary.plot(ax=ax, color=MAP_BORDER, linewidth=MAP_BORDER_W, zorder=1)
+    """
+    축 공통 스타일
+    — CartoDB Positron 타일 배경 (HTML 인터랙티브 지도와 동일)
+      → 정확한 해안선, 흰 육지, 회색 바다
+    """
+    # 범위 먼저 설정 (contextily가 이 범위의 타일을 가져옴)
     if xlim:
         ax.set_xlim(xlim)
     if ylim:
         ax.set_ylim(ylim)
     ax.set_aspect("equal")
+
+    # CartoDB Positron 타일 배경
+    ctx.add_basemap(
+        ax,
+        crs=LEN_CRS,
+        source=ctx.providers.CartoDB.Positron,
+        zoom="auto",
+        attribution=False,
+    )
+
+    # 시·도 행정경계 (옅은 점선) - 육지 위에 올려서 도 경계만 표시
+    if not admin_5179.empty:
+        admin_5179.boundary.plot(
+            ax=ax, color=MAP_BORDER, linewidth=MAP_BORDER_W,
+            linestyle=":", zorder=2, alpha=0.6,
+        )
+
     ax.tick_params(labelsize=7, color="#666666", labelcolor="#444444")
     for spine in ax.spines.values():
         spine.set_edgecolor("#AAAAAA")
@@ -564,7 +590,7 @@ def draw_grid_map(
     else:
         ax_main = fig.add_axes([0.04, 0.04, 0.92, 0.89])
 
-    _style_ax(ax_main)
+    _style_ax(ax_main, xlim=KOREA_XLIM, ylim=KOREA_YLIM)
     _plot_layers(ax_main, l765, l345, l154, hvdc, subs,
                  show_154kv_sub=show_154kv_sub,
                  overlay_lines=overlay_lines, overlay_subs=overlay_subs)
