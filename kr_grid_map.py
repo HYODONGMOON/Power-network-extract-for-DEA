@@ -598,10 +598,18 @@ def draw_grid_map(
     - 전국 지도: 오른쪽 배치
     - 빨간 테두리 사각형 없음 (분리 배치로 불필요)
     """
+    # 인셋·범례 좌측 열 공통 설정
+    LEFT_W = 0.27
+    LEFT_X = 0.02
+    INS_BOT = 0.56
+    INS_H   = 0.37
+    LEG_BOT = 0.05
+    LEG_H   = INS_BOT - LEG_BOT - 0.02
+
     fig = plt.figure(figsize=figsize, facecolor="white")
 
-    # ── 전국 지도 (우측 이동)
-    ax_main = fig.add_axes([0.30, 0.04, 0.68, 0.89])
+    # ── 전국 지도 (우측 이동, 좌측 열 확보)
+    ax_main = fig.add_axes([LEFT_X + LEFT_W + 0.03, 0.04, 0.68, 0.89])
     _style_ax(ax_main, xlim=KOREA_XLIM, ylim=KOREA_YLIM)
     _plot_layers(ax_main, l765, l345, l154, hvdc, subs,
                  show_154kv_sub=show_154kv_sub,
@@ -612,28 +620,41 @@ def draw_grid_map(
     ax_main.set_ylabel("위도 (°N)", fontsize=8, color="#555555")
 
     if show_capital_inset:
-        # ── 수도권 클로즈업 (좌측 상단 — 서울 위치 높이에 맞춤)
-        ax_inset = fig.add_axes([0.02, 0.58, 0.26, 0.33])
+        # ── 수도권 클로즈업 (좌측 상단, 타이틀 없음)
+        ax_inset = fig.add_axes([LEFT_X, INS_BOT, LEFT_W, INS_H])
         _style_ax(ax_inset,
                   xlim=(CAPITAL_BBOX_5179[0], CAPITAL_BBOX_5179[2]),
                   ylim=(CAPITAL_BBOX_5179[1], CAPITAL_BBOX_5179[3]))
         _plot_layers(ax_inset, l765, l345, l154, hvdc, subs,
                      show_154kv_sub=show_154kv_sub)
-        ax_inset.set_title("수도권 (확대)", fontsize=10, fontweight="bold",
-                            color="#222222", pad=5)
         ax_inset.tick_params(labelsize=6)
         for spine in ax_inset.spines.values():
             spine.set_edgecolor("#CC0000")
             spine.set_linewidth(1.5)
 
-        # ── 범례 (좌측 하단 — 인셋 아래)
-        ax_leg = fig.add_axes([0.02, 0.06, 0.26, 0.48])
+        # ── 범례 (좌측 하단, 인셋과 동일 너비, 긴 선 샘플)
+        ax_leg = fig.add_axes([LEFT_X, LEG_BOT, LEFT_W, LEG_H])
         ax_leg.axis("off")
-        ax_leg.legend(handles=_legend_handles(show_154kv_sub, overlay_label),
-                      loc="upper left", fontsize=11,
-                      framealpha=0.95, facecolor="white", edgecolor="#AAAAAA",
-                      title="범 례", title_fontsize=12, frameon=True,
-                      borderpad=1.0, labelspacing=0.8)
+        ax_leg.legend(
+            handles=_legend_handles(show_154kv_sub, overlay_label),
+            loc="upper left",
+            bbox_to_anchor=(0, 1),
+            bbox_transform=ax_leg.transAxes,
+            mode="expand",
+            borderaxespad=0,
+            fontsize=11,
+            title="범 례",
+            title_fontsize=12,
+            handlelength=5.0,
+            handleheight=1.2,
+            handletextpad=1.0,
+            borderpad=0.9,
+            labelspacing=0.85,
+            framealpha=0.95,
+            facecolor="white",
+            edgecolor="#AAAAAA",
+            frameon=True,
+        )
 
     plt.savefig(output_path, dpi=180, bbox_inches="tight",
                 facecolor="white")
